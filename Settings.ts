@@ -16,7 +16,7 @@ import { FolderSuggest } from './suggesters/FolderSuggest';
 
 function mediaTypeTabIcon(mediaType: MediaType): IconName {
 	switch (mediaType) {
-		case MediaType.Band:
+		case MediaType.Artist:
 			return 'mic-2';
 		case MediaType.BoardGame:
 			return 'dice-3';
@@ -70,7 +70,7 @@ export interface MediaDbPluginSettings {
 	MALAPIManga_disabledMediaTypes: MediaType[];
 	MobyGamesAPI_disabledMediaTypes: MediaType[];
 	MusicBrainzAPI_disabledMediaTypes: MediaType[];
-	MusicBrainzBandAPI_disabledMediaTypes: MediaType[];
+	MusicBrainzArtistAPI_disabledMediaTypes: MediaType[];
 	OMDbAPI_disabledMediaTypes: MediaType[];
 	OpenLibraryAPI_disabledMediaTypes: MediaType[];
 	SteamAPI_disabledMediaTypes: MediaType[];
@@ -87,7 +87,7 @@ export interface MediaDbPluginSettings {
 	gameTemplate: string;
 	wikiTemplate: string;
 	musicReleaseTemplate: string;
-	bandTemplate: string;
+	artistTemplate: string;
 	songTemplate: string;
 	boardgameTemplate: string;
 	bookTemplate: string;
@@ -99,7 +99,7 @@ export interface MediaDbPluginSettings {
 	gameFileNameTemplate: string;
 	wikiFileNameTemplate: string;
 	musicReleaseFileNameTemplate: string;
-	bandFileNameTemplate: string;
+	artistFileNameTemplate: string;
 	songFileNameTemplate: string;
 	boardgameFileNameTemplate: string;
 	bookFileNameTemplate: string;
@@ -111,7 +111,7 @@ export interface MediaDbPluginSettings {
 	gameFolder: string;
 	wikiFolder: string;
 	musicReleaseFolder: string;
-	bandFolder: string;
+	artistFolder: string;
 	songFolder: string;
 
 	/** Frontmatter `type` for each media kind (empty = default internal id, e.g. movie, musicRelease). */
@@ -122,12 +122,12 @@ export interface MediaDbPluginSettings {
 	gameNoteType: string;
 	wikiNoteType: string;
 	musicReleaseNoteType: string;
-	bandNoteType: string;
+	artistNoteType: string;
 	songNoteType: string;
 	boardgameNoteType: string;
 	bookNoteType: string;
-	/** When true, band discography import nests albums and songs under bandFolder/BandName/… instead of using album/song import folders. */
-	bandUseFileTreeForSongs: boolean;
+	/** When true, artist discography import nests albums and songs under artistFolder/ArtistName/… instead of using album/song import folders. */
+	artistUseFileTreeForSongs: boolean;
 	boardgameFolder: string;
 	bookFolder: string;
 
@@ -147,8 +147,8 @@ class MediaTypeMappedSettings {
 
 	getTemplate(settings: MediaDbPluginSettings): string {
 		switch (this.mediaType) {
-			case MediaType.Band:
-				return settings.bandTemplate;
+			case MediaType.Artist:
+				return settings.artistTemplate;
 			case MediaType.BoardGame:
 				return settings.boardgameTemplate;
 			case MediaType.Book:
@@ -174,8 +174,8 @@ class MediaTypeMappedSettings {
 
 	setTemplate(settings: MediaDbPluginSettings, template: string): void {
 		switch (this.mediaType) {
-			case MediaType.Band:
-				settings.bandTemplate = template;
+			case MediaType.Artist:
+				settings.artistTemplate = template;
 				break;
 			case MediaType.BoardGame:
 				settings.boardgameTemplate = template;
@@ -212,8 +212,8 @@ class MediaTypeMappedSettings {
 
 	getFileNameTemplate(settings: MediaDbPluginSettings): string {
 		switch (this.mediaType) {
-			case MediaType.Band:
-				return settings.bandFileNameTemplate;
+			case MediaType.Artist:
+				return settings.artistFileNameTemplate;
 			case MediaType.BoardGame:
 				return settings.boardgameFileNameTemplate;
 			case MediaType.Book:
@@ -239,8 +239,8 @@ class MediaTypeMappedSettings {
 
 	setFileNameTemplate(settings: MediaDbPluginSettings, template: string): void {
 		switch (this.mediaType) {
-			case MediaType.Band:
-				settings.bandFileNameTemplate = template;
+			case MediaType.Artist:
+				settings.artistFileNameTemplate = template;
 				break;
 			case MediaType.BoardGame:
 				settings.boardgameFileNameTemplate = template;
@@ -277,8 +277,8 @@ class MediaTypeMappedSettings {
 
 	getFolder(settings: MediaDbPluginSettings): string {
 		switch (this.mediaType) {
-			case MediaType.Band:
-				return settings.bandFolder;
+			case MediaType.Artist:
+				return settings.artistFolder;
 			case MediaType.BoardGame:
 				return settings.boardgameFolder;
 			case MediaType.Book:
@@ -304,8 +304,8 @@ class MediaTypeMappedSettings {
 
 	setFolder(settings: MediaDbPluginSettings, folder: string): void {
 		switch (this.mediaType) {
-			case MediaType.Band:
-				settings.bandFolder = folder;
+			case MediaType.Artist:
+				settings.artistFolder = folder;
 				break;
 			case MediaType.BoardGame:
 				settings.boardgameFolder = folder;
@@ -383,7 +383,7 @@ const DEFAULT_SETTINGS: MediaDbPluginSettings = {
 	MALAPIManga_disabledMediaTypes: [],
 	MobyGamesAPI_disabledMediaTypes: [],
 	MusicBrainzAPI_disabledMediaTypes: [],
-	MusicBrainzBandAPI_disabledMediaTypes: [],
+	MusicBrainzArtistAPI_disabledMediaTypes: [],
 	OMDbAPI_disabledMediaTypes: [],
 	OpenLibraryAPI_disabledMediaTypes: [],
 	SteamAPI_disabledMediaTypes: [],
@@ -400,7 +400,7 @@ const DEFAULT_SETTINGS: MediaDbPluginSettings = {
 	gameTemplate: '',
 	wikiTemplate: '',
 	musicReleaseTemplate: '',
-	bandTemplate: '',
+	artistTemplate: '',
 	songTemplate: '',
 	boardgameTemplate: '',
 	bookTemplate: '',
@@ -412,7 +412,7 @@ const DEFAULT_SETTINGS: MediaDbPluginSettings = {
 	gameFileNameTemplate: '{{ title }} ({{ year }})',
 	wikiFileNameTemplate: '{{ title }}',
 	musicReleaseFileNameTemplate: '{{ title }} ({{ FIRST:artists }} - {{ year }})',
-	bandFileNameTemplate: '{{ title }}',
+	artistFileNameTemplate: '{{ title }}',
 	songFileNameTemplate: '{{ trackNumber }}. {{ title }} ({{ albumTitle }})',
 	boardgameFileNameTemplate: '{{ title }} ({{ year }})',
 	bookFileNameTemplate: '{{ title }} ({{ year }})',
@@ -424,9 +424,9 @@ const DEFAULT_SETTINGS: MediaDbPluginSettings = {
 	gameFolder: 'Media DB/games',
 	wikiFolder: 'Media DB/wiki',
 	musicReleaseFolder: 'Media DB/music',
-	bandFolder: 'Media DB/bands',
+	artistFolder: 'Media DB/artists',
 	songFolder: 'Media DB/music/songs',
-	bandUseFileTreeForSongs: false,
+	artistUseFileTreeForSongs: false,
 	boardgameFolder: 'Media DB/boardgames',
 	bookFolder: 'Media DB/books',
 
@@ -437,7 +437,7 @@ const DEFAULT_SETTINGS: MediaDbPluginSettings = {
 	gameNoteType: '',
 	wikiNoteType: '',
 	musicReleaseNoteType: '',
-	bandNoteType: '',
+	artistNoteType: '',
 	songNoteType: '',
 	boardgameNoteType: '',
 	bookNoteType: '',
@@ -534,7 +534,7 @@ export class MediaDbSettingTab extends PluginSettingTab {
 		);
 	}
 
-	private static readonly MUSIC_SETTINGS_MEDIA_TYPES: readonly MediaType[] = [MediaType.Band, MediaType.MusicRelease, MediaType.Song];
+	private static readonly MUSIC_SETTINGS_MEDIA_TYPES: readonly MediaType[] = [MediaType.Artist, MediaType.MusicRelease, MediaType.Song];
 
 	private static readonly BOOK_SETTINGS_MEDIA_TYPES: readonly MediaType[] = [MediaType.Book, MediaType.ComicManga];
 
@@ -686,23 +686,23 @@ export class MediaDbSettingTab extends PluginSettingTab {
 
 	private renderMusicSettingsTab(panel: HTMLElement, mediaTypeSettings: MediaTypeMappedSettings[], mediaTypeApiMap: Map<MediaType, string[]>): void {
 		const byType = (mt: MediaType): MediaTypeMappedSettings => mediaTypeSettings.find(s => s.mediaType === mt)!;
-		const fileTree = this.plugin.settings.bandUseFileTreeForSongs;
+		const fileTree = this.plugin.settings.artistUseFileTreeForSongs;
 
 		panel.createDiv({ cls: 'media-db-plugin-spacer' });
 
-		this.renderMediaTypeSection(panel, byType(MediaType.Band), mediaTypeApiMap, {
-			sectionHeading: 'Band',
+		this.renderMediaTypeSection(panel, byType(MediaType.Artist), mediaTypeApiMap, {
+			sectionHeading: 'Artist',
 			appendToSection: group => {
 				group.addSetting(
 					setting =>
 						void setting
 							.setName('Use file trees for songs')
 							.setDesc(
-								'Use a file tree hierarchy to store albums and songs for each band.',
+								'Use a file tree hierarchy to store albums and songs for each artist.',
 							)
 							.addToggle(cb => {
-								cb.setValue(this.plugin.settings.bandUseFileTreeForSongs).onChange(data => {
-									this.plugin.settings.bandUseFileTreeForSongs = data;
+								cb.setValue(this.plugin.settings.artistUseFileTreeForSongs).onChange(data => {
+									this.plugin.settings.artistUseFileTreeForSongs = data;
 									void this.plugin.saveSettings();
 									this.display();
 								});
@@ -1081,7 +1081,7 @@ export class MediaDbSettingTab extends PluginSettingTab {
 			this.addApiSecretSetting(
 				apiKeyGroup,
 				'Genius API access token',
-				'Client access token from https://genius.com/api-clients — used to search songs and load lyrics when importing a band.',
+				'Client access token from https://genius.com/api-clients — used to search songs and load lyrics when importing an artist.',
 				ApiSecretID.genius,
 			);
 			this.addApiSecretSetting(
@@ -1093,7 +1093,7 @@ export class MediaDbSettingTab extends PluginSettingTab {
 			this.addApiSecretSetting(
 				apiKeyGroup,
 				'Spotify Client Secret',
-				'Pair with Spotify Client ID for client-credentials access to search tracks during band import.',
+				'Pair with Spotify Client ID for client-credentials access to search tracks during artist import.',
 				ApiSecretID.spotifyClientSecret,
 			);
 		});

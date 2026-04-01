@@ -11,7 +11,7 @@ import { MALAPI } from './api/apis/MALAPI';
 import { MALAPIManga } from './api/apis/MALAPIManga';
 import { MobyGamesAPI } from './api/apis/MobyGamesAPI';
 import { MusicBrainzAPI } from './api/apis/MusicBrainzAPI';
-import { MusicBrainzBandAPI } from './api/apis/MusicBrainzBandAPI';
+import { MusicBrainzArtistAPI } from './api/apis/MusicBrainzArtistAPI';
 import { OMDbAPI } from './api/apis/OMDbAPI';
 import { OpenLibraryAPI } from './api/apis/OpenLibraryAPI';
 import { RAWGAPI } from './api/apis/RAWGAPI';
@@ -28,7 +28,7 @@ import { BulkUpdateConfirmModal } from './modals/BulkUpdateConfirmModal';
 import { CompletionModal } from './modals/CompletionModal';
 import type { SeasonSelectModalElement } from './modals/MediaDbSeasonSelectModal';
 import { MediaDbSeasonSelectModal } from './modals/MediaDbSeasonSelectModal';
-import type { BandModel } from './models/BandModel';
+import type { ArtistModel } from './models/ArtistModel';
 import type { MediaTypeModel } from './models/MediaTypeModel';
 import type { MusicReleaseModel } from './models/MusicReleaseModel';
 import type { SeasonModel } from './models/SeasonModel';
@@ -80,7 +80,7 @@ export default class MediaDbPlugin extends Plugin {
 		this.apiManager.registerAPI(new MALAPIManga(this));
 		this.apiManager.registerAPI(new WikipediaAPI(this));
 		this.apiManager.registerAPI(new MusicBrainzAPI(this));
-		this.apiManager.registerAPI(new MusicBrainzBandAPI(this));
+		this.apiManager.registerAPI(new MusicBrainzArtistAPI(this));
 		this.apiManager.registerAPI(new SteamAPI(this));
 		this.apiManager.registerAPI(new TMDBSeriesAPI(this));
 		this.apiManager.registerAPI(new TMDBSeasonAPI(this));
@@ -524,9 +524,9 @@ export default class MediaDbPlugin extends Plugin {
 	}
 
 	async createMediaDbNotes(models: MediaTypeModel[], attachFile?: TFile): Promise<void> {
-		const hasBand = models.some(m => m.getMediaType() === MediaType.Band);
+		const hasArtist = models.some(m => m.getMediaType() === MediaType.Artist);
 
-		if (hasBand) {
+		if (hasArtist) {
 			for (const model of models) {
 				await this.createMediaDbNoteFromModel(model, { attachTemplate: true, attachFile: attachFile });
 			}
@@ -561,15 +561,16 @@ export default class MediaDbPlugin extends Plugin {
 	}
 
 	async createMediaDbNoteFromModel(mediaTypeModel: MediaTypeModel, options: CreateNoteOptions): Promise<void> {
-		if (mediaTypeModel.getMediaType() === MediaType.Band) {
-			await this.importBandDiscography(mediaTypeModel as BandModel, options);
+		if (mediaTypeModel.getMediaType() === MediaType.Artist) {
+			await this.importArtistDiscography(mediaTypeModel as ArtistModel, options);
 			return;
 		}
 
 		await this.createStandardMediaDbNoteFromModel(mediaTypeModel, options);
 	}
 
-	private async createStandardMediaDbNoteFromModel(mediaTypeModel: MediaTypeModel, options: CreateNoteOptions): Promise<void> {
+	/** @returns whether the note file was created (false if the user cancelled overwrite or an error occurred before the file was written). */
+	private async createStandardMediaDbNoteFromModel(mediaTypeModel: MediaTypeModel, options: CreateNoteOptions): Promise<boolean> {
 		try {
 			console.debug('MDB | creating new note');
 
@@ -586,11 +587,18 @@ export default class MediaDbPlugin extends Plugin {
 			const targetFile = await this.createNote(this.mediaTypeManager.getFileName(mediaTypeModel), fileContent, options);
 
 			if (this.settings.enableTemplaterIntegration) {
-				await useTemplaterPluginInFile(this.app, targetFile);
+				try {
+					await useTemplaterPluginInFile(this.app, targetFile);
+				} catch (e) {
+					console.warn(e);
+					new Notice(`${e}`);
+				}
 			}
+			return true;
 		} catch (e) {
 			console.warn(e);
 			new Notice(`${e}`);
+			return false;
 		}
 	}
 
@@ -610,26 +618,26 @@ export default class MediaDbPlugin extends Plugin {
 		return folder;
 	}
 
-	private async importBandDiscography(band: BandModel, options: CreateNoteOptions): Promise<void> {
+	private async importArtistDiscography(artist: ArtistModel, options: CreateNoteOptions): Promise<void> {
 		try {
 			const geniusToken = getApiSecretValue(this.app, this.settings.linkedApiSecretIds, ApiSecretID.genius) || undefined;
 			const genius = new GeniusClient(geniusToken);
 			if (!genius.isConfigured()) {
-				new Notice('Band import: add a Genius API access token in settings to fetch lyrics.');
+				new Notice('Artist import: add a Genius API access token in settings to fetch lyrics.');
 			}
 
 			const spotifyClientId = getApiSecretValue(this.app, this.settings.linkedApiSecretIds, ApiSecretID.spotifyClientId) || undefined;
 			const spotifyClientSecret = getApiSecretValue(this.app, this.settings.linkedApiSecretIds, ApiSecretID.spotifyClientSecret) || undefined;
 			const spotify = new SpotifyClient(spotifyClientId, spotifyClientSecret);
 
-			const bandApi = this.apiManager.getApiByName('MusicBrainz Band API') as MusicBrainzBandAPI | undefined;
+			const artistApi = this.apiManager.getApiByName('MusicBrainz Artist API') as MusicBrainzArtistAPI | undefined;
 			const musicBrainzApi = this.apiManager.getApiByName('MusicBrainz API') as MusicBrainzAPI | undefined;
-			if (!bandApi || !musicBrainzApi) {
+			if (!artistApi || !musicBrainzApi) {
 				new Notice('MusicBrainz APIs not available.');
 				return;
 			}
 
-			const useTree = this.settings.bandUseFileTreeForSongs;
+			const useTree = this.settings.artistUseFileTreeForSongs;
 			const childOptions: CreateNoteOptions = {
 				attachTemplate: true,
 				openNote: false,
@@ -637,27 +645,30 @@ export default class MediaDbPlugin extends Plugin {
 				folder: undefined,
 			};
 
-			const bandBaseFolder = await this.mediaTypeManager.getFolder(band, this.app);
-			let bandNoteFolder = bandBaseFolder;
-			let albumNotesFolder = bandBaseFolder;
+			const artistBaseFolder = await this.mediaTypeManager.getFolder(artist, this.app);
+			const artistNoteFolder = artistBaseFolder;
+			let albumNotesFolder = artistBaseFolder;
 
 			if (useTree) {
-				const bandSeg = this.safeFileTreeSegment(band.title);
-				const treeRootPath = normalizePath(`${bandBaseFolder.path}/${bandSeg}`);
+				const artistSeg = this.safeFileTreeSegment(artist.title);
+				const treeRootPath = normalizePath(`${artistBaseFolder.path}/${artistSeg}`);
 				albumNotesFolder = await this.ensureVaultFolder(treeRootPath);
 			}
 
-			await this.createStandardMediaDbNoteFromModel(band, { ...options, folder: bandNoteFolder });
+			const artistNoteCreated = await this.createStandardMediaDbNoteFromModel(artist, { ...options, folder: artistNoteFolder });
+			if (!artistNoteCreated) {
+				return;
+			}
 
 			let releaseGroupIds: string[];
 			try {
-				releaseGroupIds = await bandApi.listStudioAlbumReleaseGroupIds(band.id);
+				releaseGroupIds = await artistApi.listStudioAlbumReleaseGroupIds(artist.id);
 			} catch (e) {
 				new Notice(`Could not load albums: ${e}`);
 				return;
 			}
 
-			new Notice(`Importing ${releaseGroupIds.length} studio albums and tracks for ${band.title}…`);
+			new Notice(`Importing ${releaseGroupIds.length} studio albums and tracks for ${artist.title}…`);
 
 			for (const rgId of releaseGroupIds) {
 				await new Promise(r => setTimeout(r, 1100));
@@ -678,14 +689,17 @@ export default class MediaDbPlugin extends Plugin {
 
 				const releaseOpts: CreateNoteOptions = useTree ? { ...childOptions, folder: albumNotesFolder } : { ...childOptions };
 
-				await this.createStandardMediaDbNoteFromModel(release, releaseOpts);
+				const albumNoteCreated = await this.createStandardMediaDbNoteFromModel(release, releaseOpts);
+				if (!albumNoteCreated) {
+					continue;
+				}
 
 				for (const track of release.tracks) {
 					let lyrics = '';
 					let geniusUrl = '';
 					if (genius.isConfigured()) {
 						await new Promise(r => setTimeout(r, 500));
-						const hit = await genius.searchFirstSongHit(`${band.title} ${track.title}`);
+						const hit = await genius.searchFirstSongHit(`${artist.title} ${track.title}`);
 						if (hit) {
 							geniusUrl = hit.url;
 							await new Promise(r => setTimeout(r, 600));
@@ -703,7 +717,7 @@ export default class MediaDbPlugin extends Plugin {
 						}
 					}
 					if (!spotifyUrl && spotify.isConfigured()) {
-						const primaryArtist = release.artists[0] ?? band.title;
+						const primaryArtist = release.artists[0] ?? artist.title;
 						console.log(`MDB | Spotify API fallback for track "${track.title}" (artist: ${primaryArtist})`);
 						try {
 							spotifyUrl = await spotify.searchFirstTrackUrl(track.title, primaryArtist);
@@ -724,7 +738,7 @@ export default class MediaDbPlugin extends Plugin {
 						image: release.image,
 						subType: 'song',
 						genres: release.genres ?? [],
-						artists: release.artists.length > 0 ? release.artists : [band.title],
+						artists: release.artists.length > 0 ? release.artists : [artist.title],
 						albumTitle: release.title,
 						albumReleaseGroupId: release.id,
 						trackNumber: track.number,
@@ -742,7 +756,7 @@ export default class MediaDbPlugin extends Plugin {
 				}
 			}
 
-			new Notice(`Finished band import for ${band.title}.`);
+			new Notice(`Finished artist import for ${artist.title}.`);
 		} catch (e) {
 			console.warn(e);
 			new Notice(`${e}`);
@@ -1218,6 +1232,17 @@ export default class MediaDbPlugin extends Plugin {
 
 		// Store as plain data for serialization (canonical order matches settings UI)
 		loadedSettings.propertyMappingModels = propertyMappingModelsInDisplayOrder(migratedModels.map(m => m.toJSON()));
+
+		// --- MIGRATION: Band to Artist ---
+		const anyLoaded = diskSettings as any;
+		if (anyLoaded) {
+			if (anyLoaded.bandTemplate && !loadedSettings.artistTemplate) loadedSettings.artistTemplate = anyLoaded.bandTemplate;
+			if (anyLoaded.bandFolder && !loadedSettings.artistFolder) loadedSettings.artistFolder = anyLoaded.bandFolder;
+			if (anyLoaded.bandFileNameTemplate && !loadedSettings.artistFileNameTemplate) loadedSettings.artistFileNameTemplate = anyLoaded.bandFileNameTemplate;
+			if (anyLoaded.bandNoteType && !loadedSettings.artistNoteType) loadedSettings.artistNoteType = anyLoaded.bandNoteType;
+			if (anyLoaded.bandUseFileTreeForSongs !== undefined && loadedSettings.artistUseFileTreeForSongs === false) loadedSettings.artistUseFileTreeForSongs = anyLoaded.bandUseFileTreeForSongs;
+			if (anyLoaded.MusicBrainzBandAPI_disabledMediaTypes && !loadedSettings.MusicBrainzArtistAPI_disabledMediaTypes) loadedSettings.MusicBrainzArtistAPI_disabledMediaTypes = anyLoaded.MusicBrainzBandAPI_disabledMediaTypes;
+		}
 
 		this.settings = loadedSettings;
 	}
