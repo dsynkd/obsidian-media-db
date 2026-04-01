@@ -22,7 +22,7 @@ export function containsOnlyLettersAndUnderscores(str: string): boolean {
 }
 
 export function replaceIllegalFileNameCharactersInString(string: string): string {
-	return string.replace(/[\\,#%&{}/*<>$"@.?]*/g, '').replace(/:+/g, ' -');
+	return string.replace(/[\\/:"*?<>|]/g, '-');
 }
 
 export function replaceTags(template: string, mediaTypeModel: MediaTypeModel, ignoreUndefined: boolean = false): string {
@@ -43,6 +43,10 @@ function replaceTag(match: string, mediaTypeModel: MediaTypeModel, ignoreUndefin
 
 		if (obj === undefined) {
 			return ignoreUndefined ? '' : '{{ INVALID TEMPLATE TAG - object undefined }}';
+		}
+		// year: 0 means "unknown" — return empty string so filename templates stay clean (e.g. "Title ()")
+		if (path[path.length - 1] === 'year' && obj === 0) {
+			return '';
 		}
 
 		// eslint-disable-next-line @typescript-eslint/no-base-to-string
@@ -202,6 +206,7 @@ export interface CreateNoteOptions {
 	attachFile?: TFile;
 	openNote?: boolean;
 	folder?: TFolder;
+	overwrite?: boolean;
 }
 
 /** Runtime in whole minutes (TMDB/OMDb/MAL). 0 when unknown. Parses legacy string frontmatter (e.g. "136 min", "2 hr 5 min"). */
